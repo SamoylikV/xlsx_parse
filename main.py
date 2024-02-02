@@ -2,9 +2,7 @@ import os
 import pandas as pd
 import fnmatch
 import inquirer
-import traceback
 import re
-from pathlib import Path
 
 
 class Parmaster:
@@ -22,11 +20,12 @@ class Parmaster:
         self.rank = rank
         self.author_procedures = author_procedures
         self.collective_procedures = collective_procedures
+        self.base_salary = self.RANKS[self.rank]['base_salary']
+        self.procedure_percentage = self.RANKS[self.rank]['procedure_percentage']
 
     def calculate_salary(self):
         """Рассчитать зарплату Parmaster."""
         base_salary = self.RANKS[self.rank]['base_salary']
-        procedure_percentage = self.RANKS[self.rank]['procedure_percentage']
 
         author_earnings = sum(
             value
@@ -191,6 +190,8 @@ def get_parmasters(parmasters_info, author_procedures, collective_procedures, de
     parmasters = []
     valid_ranks = ['стажер', 'младший мастер', 'мастер', 'старший мастер']
     parmasters_names = parmasters_info[0].iloc[:, 3].dropna().unique()
+
+
     for name in parmasters_names:
         if name != 'Продано с блюдом':
             if debug_mode:
@@ -213,21 +214,32 @@ def get_parmasters(parmasters_info, author_procedures, collective_procedures, de
                 except ValueError:
                     count = 0
                 collective_procedures.setdefault(procedure_type, []).append((name, count))
+
             parmaster = Parmaster(name, rank, author_procedures, collective_procedures)
             parmasters.append(parmaster)
 
     return parmasters
 
+def get_cauldron(parmasters, data1_df):
+    """Основная функция."""
 
-def get_results(parmasters):
+    total_ = data1_df.loc[data1_df.iloc[:, 0] == 'Итого'].iloc[:, 4].iloc[0]
+
+    total = sum(1 for parmaster in parmasters if parmaster.rank in ['младший мастер', 'мастер', 'старший мастер'])
+
+    return total_ / total if total else 0
+
+
+def get_results(parmasters, cauldron):
     """Получить результаты от указанных Parmasters."""
-    return [{'Имя': parmaster.name, 'Ставка': parmaster.rank,
+    return [{'Имя': parmaster.name, 'Ставка': parmaster.rank, 'Ставка р.': parmaster.base_salary,
              'Коллективное парение': parmaster.calculate_collective_procedures()[1],
-             'Парение авторское (кол-во)': parmaster.calculate_author_procedures()[0],
-             'Парение авторское (сумма)': parmaster.calculate_author_procedures()[1],
-             'Котёл': parmaster.calculate_salary()[0],
-             'Итого': parmaster.calculate_salary()[1] + parmaster.calculate_salary()[0]} for parmaster in
-            parmasters]
+             '(кол-во) Парение авторское': parmaster.calculate_author_procedures()[0],
+             '(сумма) Парение авторское': parmaster.calculate_author_procedures()[1],
+             'Котёл': cauldron * parmaster.procedure_percentage,
+             'Итого': parmaster.calculate_salary()[0] * parmaster.procedure_percentage + parmaster.calculate_salary()[1] + cauldron * parmaster.procedure_percentage
+             } for parmaster in parmasters]
+
 
 
 def save_results(results, detailed_procedures, file_name):
@@ -254,9 +266,10 @@ def main():
         user_input = input("Нажмите Enter, чтобы продолжить...")
         exit()
     else:
+        data1 = data1_files[0]
         data2 = data2_files[0]
         data3 = data3_files[0]
-
+    data1_df = get_data(data1, header=3)
     data2_df = get_data(data2, header=3)
     data3_df = get_data(data3, header=3)
 
@@ -265,8 +278,8 @@ def main():
 
     parmasters_info = get_parmasters_info(data3_df, data2_df)
     parmasters = get_parmasters(parmasters_info, author_procedures, collective_procedures, debug_mode)
-
-    results = get_results(parmasters)
+    cauldron = get_cauldron(parmasters, data1_df)
+    results = get_results(parmasters, cauldron)
     match = re.search(r'\d{2}_\d{2}_\d{4}_\d{2}_\d{2}_\d{2}', data3)
     date_time = match.group() if match is not None else 0
     result_file_name = f'отчет_{date_time}.xlsx'
@@ -274,7 +287,6 @@ def main():
     detailed_procedures = []
     for parmaster in parmasters:
         detailed_procedures.extend(parmaster.calculate_detailed_procedures())
-
     save_results(results, detailed_procedures, result_file_name)
 
 
