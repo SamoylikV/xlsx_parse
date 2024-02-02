@@ -3,6 +3,7 @@ import pandas as pd
 import fnmatch
 import inquirer
 import re
+from collections import Counter
 
 
 class Parmaster:
@@ -185,12 +186,27 @@ def get_parmasters_info(data, data2):
                                                                                                             :, 3]
 
 
+def get_parmasters_count(data):
+    count_notnan = []
+    flag = False
+    for index, row in data.iterrows():
+        if row.iloc[0] == 'Пармастер':
+            flag = True
+        if flag:
+            if row.iloc[0] == 'Системный администратор':
+                break
+            for col in range(2 + 1, len(data.columns) - 1):
+                if pd.notna(row[col]):
+                    count_notnan.append(row.iloc[2])
+
+    return dict(Counter(count_notnan))
+
+
 def get_parmasters(parmasters_info, author_procedures, collective_procedures, debug_mode=False):
     """Получить Parmasters из указанной информации."""
     parmasters = []
     valid_ranks = ['стажер', 'младший мастер', 'мастер', 'старший мастер']
     parmasters_names = parmasters_info[0].iloc[:, 3].dropna().unique()
-
 
     for name in parmasters_names:
         if name != 'Продано с блюдом':
@@ -220,14 +236,23 @@ def get_parmasters(parmasters_info, author_procedures, collective_procedures, de
 
     return parmasters
 
-def get_cauldron(parmasters, data1_df):
+
+def get_cauldron(parmasters, parmasters_count, data1_df):
     """Основная функция."""
 
-    total_ = data1_df.loc[data1_df.iloc[:, 0] == 'Итого'].iloc[:, 4].iloc[0]
+    total = data1_df.loc[data1_df.iloc[:, 0] == 'Итого'].iloc[:, 4].iloc[0]
+    counter = 0
+    for name_to_find in list(parmasters_count.keys()):
+        name_parts_to_find = re.split(r'\s+', name_to_find.strip())
+        for parmaster in parmasters:
+            name_parts = re.split(r'\s+', parmaster.name.lower())
+            for part in name_parts_to_find:
+                if part.lower() in name_parts:
+                    if parmaster.rank != 'стажер':
+                        counter += 1
+                        break
 
-    total = sum(1 for parmaster in parmasters if parmaster.rank in ['младший мастер', 'мастер', 'старший мастер'])
-
-    return total_ / total if total else 0
+    return total / counter
 
 
 def get_results(parmasters, cauldron):
@@ -237,9 +262,9 @@ def get_results(parmasters, cauldron):
              '(кол-во) Парение авторское': parmaster.calculate_author_procedures()[0],
              '(сумма) Парение авторское': parmaster.calculate_author_procedures()[1],
              'Котёл': cauldron * parmaster.procedure_percentage,
-             'Итого': parmaster.calculate_salary()[0] * parmaster.procedure_percentage + parmaster.calculate_salary()[1] + cauldron * parmaster.procedure_percentage
+             'Итого': parmaster.calculate_salary()[0] * parmaster.procedure_percentage + parmaster.calculate_salary()[
+                 1] + cauldron * parmaster.procedure_percentage
              } for parmaster in parmasters]
-
 
 
 def save_results(results, detailed_procedures, file_name):
@@ -260,8 +285,9 @@ def main():
     data1_files = get_files('!1*.xlsx')
     data2_files = get_files('!3*.xlsx')
     data3_files = get_files('!4*.xlsx')
+    data4_files = get_files('tmp*.xlsx')
 
-    if not data1_files or not data2_files or not data3_files:
+    if not data1_files or not data2_files or not data3_files or not data4_files:
         print("Не найден один из файлов")
         user_input = input("Нажмите Enter, чтобы продолжить...")
         exit()
@@ -269,16 +295,20 @@ def main():
         data1 = data1_files[0]
         data2 = data2_files[0]
         data3 = data3_files[0]
+        data4 = data4_files[0]
+
     data1_df = get_data(data1, header=3)
     data2_df = get_data(data2, header=3)
     data3_df = get_data(data3, header=3)
+    data4_df = get_data(data4)
 
     collective_procedures = get_collective_procedures(data3_df)
     author_procedures = get_author_procedures(data2_df)
 
     parmasters_info = get_parmasters_info(data3_df, data2_df)
     parmasters = get_parmasters(parmasters_info, author_procedures, collective_procedures, debug_mode)
-    cauldron = get_cauldron(parmasters, data1_df)
+    parmasters_count = get_parmasters_count(data4_df)
+    cauldron = get_cauldron(parmasters, parmasters_count, data1_df)
     results = get_results(parmasters, cauldron)
     match = re.search(r'\d{2}_\d{2}_\d{4}_\d{2}_\d{2}_\d{2}', data3)
     date_time = match.group() if match is not None else 0
