@@ -243,7 +243,7 @@ def save_results(results, detailed_procedures, file_name):
 def main():
     """Основная функция."""
 
-    debug_mode = True  # Включить/выключить режим отладки
+    debug_mode = False  # Включить/выключить режим отладки
 
     data1_files = get_files('!1*.xlsx')
     data2_files = get_files('!3*.xlsx')
@@ -267,7 +267,8 @@ def main():
     parmasters = get_parmasters(parmasters_info, author_procedures, collective_procedures, debug_mode)
 
     results = get_results(parmasters)
-    date_time = re.search(r'\d{2}_\d{2}_\d{4}_\d{2}_\d{2}_\d{2}', data3).group()
+    match = re.search(r'\d{2}_\d{2}_\d{4}_\d{2}_\d{2}_\d{2}', data3)
+    date_time = match.group() if match is not None else 0
     result_file_name = f'отчет_{date_time}.xlsx'
 
     detailed_procedures = []

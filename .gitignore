@@ -293,3 +293,9 @@ pyrightconfig.json
 test.py
 
 .idea/*
+
+.build/
+.dist/
+web.ico
+.test/*
+main.spec
