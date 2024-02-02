@@ -64,7 +64,6 @@ class Parmaster:
             for name, count, salary_value in procedures
             if name == self.name
         )
-        print(author_count, author_earnings)
         return author_count, author_earnings
 
     def calculate_collective_procedures(self):
@@ -75,19 +74,23 @@ class Parmaster:
             for name, count in procedures
             if name == self.name
         )
-        collective_earnings = sum(
-            count * 600 if 'Русская' in procedure_type else count * 400
-            for procedure_type, procedures in self.collective_procedures.items()
-            for name, count in procedures
-            if name == self.name
-        )
+        collective_earnings = 0
+        for procedure_type, procedures in self.collective_procedures.items():
+            if not isinstance(procedure_type, str):
+                continue
+            for name, count in procedures:
+                if name == self.name:
+                    if 'Русская' in procedure_type:
+                        collective_earnings += count * 600
+                    else:
+                        collective_earnings += count * 400
+
         return collective_count, collective_earnings
 
     def calculate_detailed_procedures(self):
         """Рассчитать детализированную информацию о процедурах для вывода в Excel."""
         detailed_procedures = []
-
-        for procedure_type, procedures, value in self.author_procedures.items():
+        for procedure_type, procedures in self.author_procedures.items():
             for name, count, salary_value in procedures:
                 detailed_procedures.append({
                     'Имя': name,
@@ -98,6 +101,8 @@ class Parmaster:
 
         for procedure_type, procedures in self.collective_procedures.items():
             for name, count in procedures:
+                if not isinstance(procedure_type, str):
+                    continue
                 detailed_procedures.append({
                     'Имя': name,
                     'Тип процедуры': procedure_type,
@@ -105,6 +110,9 @@ class Parmaster:
                     'Зарплата за процедуру': count * 600 if 'Русская' in procedure_type else count * 400
                 })
 
+        detailed_procedures_set = set(tuple(sorted(d.items(), key=lambda item: item[0])) for d in detailed_procedures)
+
+        detailed_procedures = [dict(t) for t in detailed_procedures_set]
         return detailed_procedures
 
 
@@ -213,14 +221,22 @@ def get_parmasters(parmasters_info, author_procedures, collective_procedures, de
 
 def get_results(parmasters):
     """Получить результаты от указанных Parmasters."""
-    return [{'Имя': parmaster.name, 'Ставка': parmaster.rank, 'Зарплата': parmaster.calculate_salary()} for parmaster in
+    return [{'Имя': parmaster.name, 'Ставка': parmaster.rank, 'Зарплата': parmaster.calculate_salary(),
+             'Коллективное парение (кол-во)': parmaster.calculate_collective_procedures()[0],
+             'Коллективное парение (сумма)': parmaster.calculate_collective_procedures()[1],
+             'Парение авторское (кол-во)': parmaster.calculate_author_procedures()[0],
+             'Парение авторское (сумма)': parmaster.calculate_author_procedures()[1]} for parmaster in
             parmasters]
 
 
-def save_results(results, file_name):
+def save_results(results, detailed_procedures, file_name):
     """Сохранить результаты в указанный файл."""
     results_df = pd.DataFrame(results)
-    results_df.to_excel(file_name, index=False)
+    detailed_procedures_df = pd.DataFrame(detailed_procedures)
+
+    with pd.ExcelWriter(file_name, engine='openpyxl') as writer:
+        results_df.to_excel(writer, sheet_name='Отчет', index=False)
+        detailed_procedures_df.to_excel(writer, sheet_name='Все процедуры', index=False)
 
 
 def main():
@@ -247,7 +263,6 @@ def main():
     collective_procedures = get_collective_procedures(data3_df)
     author_procedures = get_author_procedures(data2_df)
 
-
     parmasters_info = get_parmasters_info(data3_df, data2_df)
     parmasters = get_parmasters(parmasters_info, author_procedures, collective_procedures, debug_mode)
 
@@ -255,7 +270,11 @@ def main():
     date_time = re.search(r'\d{2}_\d{2}_\d{4}_\d{2}_\d{2}_\d{2}', data3).group()
     result_file_name = f'отчет_{date_time}.xlsx'
 
-    save_results(results, result_file_name)
+    detailed_procedures = []
+    for parmaster in parmasters:
+        detailed_procedures.extend(parmaster.calculate_detailed_procedures())
+
+    save_results(results, detailed_procedures, result_file_name)
 
 
 if __name__ == "__main__":
