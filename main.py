@@ -17,10 +17,9 @@ class Parmaster:
         'старший мастер': {'base_salary': 2000, 'procedure_percentage': 0.35},
     }
 
-    def __init__(self, name, rank, total_procedures, author_procedures, collective_procedures):
+    def __init__(self, name, rank, author_procedures, collective_procedures):
         self.name = name
         self.rank = rank
-        self.total_procedures = total_procedures
         self.author_procedures = author_procedures
         self.collective_procedures = collective_procedures
 
@@ -29,7 +28,6 @@ class Parmaster:
         base_salary = self.RANKS[self.rank]['base_salary']
         procedure_percentage = self.RANKS[self.rank]['procedure_percentage']
 
-        procedure_earnings = self.total_procedures * procedure_percentage
         author_earnings = sum(
             value
             for procedure_type, procedures in self.author_procedures.items()
@@ -37,17 +35,19 @@ class Parmaster:
             if author_info[0] == self.name
             for value in author_info[2:]
         )
+        collective_earnings = 0
+        for procedure_type, procedures in self.collective_procedures.items():
+            if not isinstance(procedure_type, str):
+                continue
+            for name, count in procedures:
+                if name == self.name:
+                    if 'Русская' in procedure_type:
+                        collective_earnings += count * 600
+                    else:
+                        collective_earnings += count * 400
+        total_salary = base_salary + author_earnings + collective_earnings
 
-        collective_earnings = sum(
-            count * 600 if 'Русская' in procedure_type else count * 400
-            for procedure_type, procedures in self.collective_procedures.items()
-            for name, count in procedures
-            if name == self.name
-        )
-
-        total_salary = base_salary + procedure_earnings + author_earnings + collective_earnings
-
-        return total_salary
+        return int(total_salary)
 
     def calculate_author_procedures(self):
         """Рассчитать количество и зарплату за авторские процедуры."""
@@ -64,6 +64,7 @@ class Parmaster:
             for name, count, salary_value in procedures
             if name == self.name
         )
+        print(author_count, author_earnings)
         return author_count, author_earnings
 
     def calculate_collective_procedures(self):
@@ -172,15 +173,16 @@ def get_collective_procedures(data):
 
 def get_parmasters_info(data, data2):
     """Получить информацию о Parmasters из указанных данных."""
-    return data[data.iloc[:, 3].notna() & data.iloc[:, 4].notna()], data2.iloc[:, 0], data2.iloc[:, 1], data2.iloc[:, 2], data2.iloc[:, 3]
+    return data[data.iloc[:, 3].notna() & data.iloc[:, 4].notna()], data2.iloc[:, 0], data2.iloc[:, 1], data2.iloc[:,
+                                                                                                        2], data2.iloc[
+                                                                                                            :, 3]
 
 
-def get_parmasters(parmasters_info, total_procedures, author_procedures, collective_procedures, debug_mode=False):
+def get_parmasters(parmasters_info, author_procedures, collective_procedures, debug_mode=False):
     """Получить Parmasters из указанной информации."""
     parmasters = []
     valid_ranks = ['стажер', 'младший мастер', 'мастер', 'старший мастер']
     parmasters_names = parmasters_info[0].iloc[:, 3].dropna().unique()
-
     for name in parmasters_names:
         if name != 'Продано с блюдом':
             if debug_mode:
@@ -194,16 +196,16 @@ def get_parmasters(parmasters_info, total_procedures, author_procedures, collect
                 ]
                 answers = inquirer.prompt(questions)
                 rank = answers['rank']
-            parmaster_info = parmasters_info[0][parmasters_info[0].iloc[:, 1] == name]
-            for index, row in parmaster_info.iterrows():
-                procedure_type = row[0]
+
+            parmaster_info_collective = parmasters_info[0][parmasters_info[0].iloc[:, 3] == name]
+            for index, row in parmaster_info_collective.iterrows():
+                procedure_type = row[2]
                 try:
-                    count = int(row[2])
+                    count = int(row[4])
                 except ValueError:
                     count = 0
                 collective_procedures.setdefault(procedure_type, []).append((name, count))
-
-            parmaster = Parmaster(name, rank, total_procedures, author_procedures, collective_procedures)
+            parmaster = Parmaster(name, rank, author_procedures, collective_procedures)
             parmasters.append(parmaster)
 
     return parmasters
@@ -224,7 +226,7 @@ def save_results(results, file_name):
 def main():
     """Основная функция."""
 
-    debug_mode = False # Включить/выключить режим отладки
+    debug_mode = False  # Включить/выключить режим отладки
 
     data1_files = get_files('!1*.xlsx')
     data2_files = get_files('!3*.xlsx')
@@ -239,17 +241,15 @@ def main():
         data2 = data2_files[0]
         data3 = data3_files[0]
 
-    data1_df = get_data(data1)
     data2_df = get_data(data2, header=3)
     data3_df = get_data(data3, header=3)
 
     collective_procedures = get_collective_procedures(data3_df)
     author_procedures = get_author_procedures(data2_df)
 
-    total_procedures = data1_df.iloc[-1].iloc[2]
 
     parmasters_info = get_parmasters_info(data3_df, data2_df)
-    parmasters = get_parmasters(parmasters_info, total_procedures, author_procedures, collective_procedures, debug_mode)
+    parmasters = get_parmasters(parmasters_info, author_procedures, collective_procedures, debug_mode)
 
     results = get_results(parmasters)
     date_time = re.search(r'\d{2}_\d{2}_\d{4}_\d{2}_\d{2}_\d{2}', data3).group()
