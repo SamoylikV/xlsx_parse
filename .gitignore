@@ -292,4 +292,4 @@ pyrightconfig.json
 # Custom Python file
 test.py
 
-.idea
+.idea/*
