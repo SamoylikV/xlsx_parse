@@ -45,9 +45,9 @@ class Parmaster:
                         collective_earnings += count * 600
                     else:
                         collective_earnings += count * 400
-        total_salary = base_salary + author_earnings + collective_earnings
+        total_salary = author_earnings + collective_earnings
 
-        return int(total_salary)
+        return int(total_salary), base_salary
 
     def calculate_author_procedures(self):
         """Рассчитать количество и зарплату за авторские процедуры."""
@@ -221,11 +221,12 @@ def get_parmasters(parmasters_info, author_procedures, collective_procedures, de
 
 def get_results(parmasters):
     """Получить результаты от указанных Parmasters."""
-    return [{'Имя': parmaster.name, 'Ставка': parmaster.rank, 'Зарплата': parmaster.calculate_salary(),
-             'Коллективное парение (кол-во)': parmaster.calculate_collective_procedures()[0],
-             'Коллективное парение (сумма)': parmaster.calculate_collective_procedures()[1],
+    return [{'Имя': parmaster.name, 'Ставка': parmaster.rank,
+             'Коллективное парение': parmaster.calculate_collective_procedures()[1],
              'Парение авторское (кол-во)': parmaster.calculate_author_procedures()[0],
-             'Парение авторское (сумма)': parmaster.calculate_author_procedures()[1]} for parmaster in
+             'Парение авторское (сумма)': parmaster.calculate_author_procedures()[1],
+             'Котёл': parmaster.calculate_salary()[0],
+             'Итого': parmaster.calculate_salary()[1] + parmaster.calculate_salary()[0]} for parmaster in
             parmasters]
 
 
@@ -242,7 +243,7 @@ def save_results(results, detailed_procedures, file_name):
 def main():
     """Основная функция."""
 
-    debug_mode = False  # Включить/выключить режим отладки
+    debug_mode = True  # Включить/выключить режим отладки
 
     data1_files = get_files('!1*.xlsx')
     data2_files = get_files('!3*.xlsx')
@@ -253,7 +254,6 @@ def main():
         user_input = input("Нажмите Enter, чтобы продолжить...")
         exit()
     else:
-        data1 = data1_files[0]
         data2 = data2_files[0]
         data3 = data3_files[0]
 
