@@ -91,19 +91,22 @@ def get_parmasters_count(data):
     return dict(Counter(count_notnan))
 
 
-def calculate_cauldron(parmasters, parmasters_count, data1_df):
+def calculate_cauldron(parmasters, data1_df):
     """Получение котла."""
     total = data1_df.loc[data1_df.iloc[:, 0] == 'Итого'].iloc[:, 4].iloc[0]
     counter = 0
-    for name_to_find in list(parmasters_count.keys()):
-        name_parts_to_find = re.split(r'\s+', name_to_find.strip())
-        for parmaster in parmasters:
-            name_parts = re.split(r'\s+', parmaster.name.lower())
-            for part in name_parts_to_find:
-                if part.lower() in name_parts:
-                    if parmaster.rank != 'стажер':
-                        counter += 1
-                        break
+    # for name_to_find in list(parmasters_count.keys()):
+    #     name_parts_to_find = re.split(r'\s+', name_to_find.strip())
+    #     for parmaster in parmasters:
+    #         name_parts = re.split(r'\s+', parmaster.name.lower())
+    #         for part in name_parts_to_find:
+    #             if part.lower() in name_parts:
+    #                 if parmaster.rank != 'стажер':
+    #                     counter += 1
+    #                     break
+    for _ in parmasters:
+        if _.rank != 'стажер':
+            counter += _.shifts
     if counter != 0:
         return total / counter
     else:
@@ -114,16 +117,16 @@ def get_results(parmasters, cauldron):
     """Получить результаты от указанных Parmasters."""
     return [{'Имя': parmaster.name, 'Ставка': parmaster.rank, 'Ставка р.': parmaster.base_salary,
              'Ставка р. (за все смены)': parmaster.calculated_stake,
-             'Коллективное парение': parmaster.calculate_collective_procedures()[1],
+             '(сумма) Коллективное парение': parmaster.calculate_collective_procedures()[1],
+             '(кол-во) Коллективное парение': parmaster.calculate_collective_procedures()[0],
              '(кол-во) Парение авторское': parmaster.calculate_author_procedures()[0][0],
              '(сумма) Парение авторское': parmaster.calculate_author_procedures()[0][1],
              '(кол-во) Парение коллективное авторское': parmaster.calculate_author_procedures()[1][0],
              '(сумма) Парение коллективное авторское': parmaster.calculate_author_procedures()[1][1],
-             'Все парения (сумма без процента и котла) ': parmaster.calculate_salary()[1],
              'Котёл': cauldron * parmaster.procedure_percentage if parmaster.rank != 'стажер' else 0,
              'Итого': parmaster.calculate_salary()[0] + (
                  cauldron * parmaster.procedure_percentage if parmaster.rank != 'стажер' else 0),
-             'Кол-во смен': parmaster.counter + parmaster.calculate_author_procedures()[0][0] +
+             'Кол-во пар': parmaster.shifts + parmaster.calculate_author_procedures()[0][0] +
                             parmaster.calculate_author_procedures()[1][0]
              } for parmaster in parmasters]
 

@@ -12,12 +12,20 @@ class Parmaster:
         self.author_procedures = author_procedures
         self.collective_procedures = collective_procedures
         self.base_salary = RANKS[self.rank]['base_salary']
-        self.calculated_stake = self.calculate_stake(get_parmasters_count(get_data(get_files('tmp*.xlsx')[0])))[0]
-        self.counter = self.calculate_stake(get_parmasters_count(get_data(get_files('tmp*.xlsx')[0])))[1]
+        self.calculated_stake = self.calculate_stake()[0]
+        self.shifts = self.count_shifts()
         self.procedure_percentage = RANKS[self.rank]['procedure_percentage']
+        self.percentage_for_author = 0
 
-    def calculate_stake(self, parmasters_count):
+    def count_shifts(self):
+        """Подсчитать количество смен."""
+        return self.calculate_stake()[1] + \
+            self.calculate_author_procedures()[0][0] + self.calculate_author_procedures()[1][0] + \
+            self.calculate_collective_procedures()[0]
+
+    def calculate_stake(self):
         """Получение прибавки."""
+        parmasters_count = get_parmasters_count(get_data(get_files('tmp*.xlsx')[0]))
         stake = 0
         counter = 0
         for name_to_find in list(parmasters_count.keys()):
@@ -50,10 +58,27 @@ class Parmaster:
                     else:
                         collective_earnings += count * 400
         total_salary = ((
-                                    author_earnings + collective_earnings) * self.procedure_percentage if self.procedure_percentage != 0 else (
-                author_earnings + collective_earnings)) + self.calculated_stake
+                                author_earnings + collective_earnings) * self.procedure_percentage if self.procedure_percentage != 0 else (
+                author_earnings + collective_earnings)) + self.calculated_stake + self.calculate_author_percentage() # Если стажерам накидывается 10%
+        # total_salary = ((
+        #                         author_earnings + collective_earnings) * self.procedure_percentage if self.procedure_percentage != 0 else (
+        #         author_earnings + collective_earnings)) + self.calculated_stake + self.calculate_author_percentage() # Если стажерам не накидывается 10%
         total_salary_no_percent = author_earnings + collective_earnings + self.calculated_stake
         return total_salary, total_salary_no_percent
+
+    def calculate_author_percentage(self):
+        """Рассчитать процент НЕ автора."""
+        author_percentage = 0
+        for procedure_type, procedures in self.author_procedures.items():
+            for name, count, salary_value in procedures:
+                if name == self.name:
+                    author_percentage = 0
+                    break
+                if procedure_type == 'Парение авторское' and name != self.name:
+                    author_percentage += salary_value * 0.1
+                elif procedure_type == 'Коллективное парение для компании' and name != self.name:
+                    author_percentage += salary_value * 0.1
+        return author_percentage
 
     def calculate_collective_procedures(self):
         """Рассчитать количество и зарплату за коллективные процедуры."""
@@ -85,10 +110,10 @@ class Parmaster:
             for name, count, salary_value in procedures:
                 if procedure_type == 'Парение авторское' and name == self.name:
                     author_count = count
-                    author_earnings = salary_value
+                    author_earnings = salary_value * 0.3
                 elif procedure_type == 'Коллективное парение для компании' and name == self.name:
                     author_collective_count = count
-                    author_collective_earnings = salary_value
+                    author_collective_earnings = salary_value * 0.3
         return (author_count, author_earnings), (author_collective_count, author_collective_earnings)
 
     def calculate_detailed_procedures(self):
@@ -113,8 +138,6 @@ class Parmaster:
                     'Количество': count,
                     'Зарплата за процедуру': count * 600 if 'Русская' in procedure_type else count * 400
                 })
-
         detailed_procedures_set = set(tuple(sorted(d.items(), key=lambda item: item[0])) for d in detailed_procedures)
-
         detailed_procedures = [dict(t) for t in detailed_procedures_set]
         return detailed_procedures
