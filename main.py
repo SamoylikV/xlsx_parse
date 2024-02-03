@@ -22,12 +22,34 @@ class Parmaster:
         self.author_procedures = author_procedures
         self.collective_procedures = collective_procedures
         self.base_salary = self.RANKS[self.rank]['base_salary']
+        self.calculated_stake = self.calculate_stake(get_parmasters_count(get_data(get_files('tmp*.xlsx')[0])))[0]
+        self.counter = self.calculate_stake(get_parmasters_count(get_data(get_files('tmp*.xlsx')[0])))[1]
         self.procedure_percentage = self.RANKS[self.rank]['procedure_percentage']
+
+    def calculate_stake(self, parmasters_count):
+        """Получение прибавки."""
+
+        RANKS = {
+            'стажер': {'base_salary': 2500, 'procedure_percentage': 0},
+            'младший мастер': {'base_salary': 1300, 'procedure_percentage': 0.25},
+            'мастер': {'base_salary': 1500, 'procedure_percentage': 0.30},
+            'старший мастер': {'base_salary': 2000, 'procedure_percentage': 0.35},
+        }
+
+        stake = 0
+        counter = 0
+        for name_to_find in list(parmasters_count.keys()):
+            name_parts_to_find = re.split(r'\s+', name_to_find.strip())
+            name_parts = re.split(r'\s+', self.name.lower())
+            for part in name_parts_to_find:
+                if part.lower() in name_parts:
+                    stake = RANKS[self.rank]['base_salary'] * parmasters_count[name_to_find]
+                    counter = parmasters_count[name_to_find]
+                    break
+        return stake, counter
 
     def calculate_salary(self):
         """Рассчитать зарплату Parmaster."""
-        base_salary = self.RANKS[self.rank]['base_salary']
-
         author_earnings = sum(
             value
             for procedure_type, procedures in self.author_procedures.items()
@@ -45,26 +67,9 @@ class Parmaster:
                         collective_earnings += count * 600
                     else:
                         collective_earnings += count * 400
-        total_salary = author_earnings + collective_earnings
-
-        return int(total_salary), base_salary
-
-    def calculate_author_procedures(self):
-        """Рассчитать количество и зарплату за авторские процедуры."""
-        author_count = sum(
-            count
-            for procedure_type, procedures in self.author_procedures.items()
-            for name, count, salary_value in procedures
-            if name == self.name
-        )
-
-        author_earnings = sum(
-            salary_value
-            for procedure_type, procedures in self.author_procedures.items()
-            for name, count, salary_value in procedures
-            if name == self.name
-        )
-        return author_count, author_earnings
+        total_salary = ((author_earnings + collective_earnings) * self.procedure_percentage if self.procedure_percentage != 0 else (author_earnings + collective_earnings)) + self.calculated_stake
+        total_salary_no_percent = author_earnings + collective_earnings + self.calculated_stake
+        return total_salary, total_salary_no_percent
 
     def calculate_collective_procedures(self):
         """Рассчитать количество и зарплату за коллективные процедуры."""
@@ -86,6 +91,22 @@ class Parmaster:
                         collective_earnings += count * 400
 
         return collective_count, collective_earnings
+
+    def calculate_author_procedures(self):
+        """Рассчитать количество и зарплату за авторские процедуры."""
+        author_count = 0
+        author_collective_count = 0
+        author_earnings = 0
+        author_collective_earnings = 0
+        for procedure_type, procedures in self.author_procedures.items():
+            for name, count, salary_value in procedures:
+                if procedure_type == 'Парение авторское' and name == self.name:
+                    author_count = count
+                    author_earnings = salary_value
+                elif procedure_type == 'Коллективное парение для компании' and name == self.name:
+                    author_collective_count = count
+                    author_collective_earnings = salary_value
+        return (author_count, author_earnings), (author_collective_count, author_collective_earnings)
 
     def calculate_detailed_procedures(self):
         """Рассчитать детализированную информацию о процедурах для вывода в Excel."""
@@ -175,7 +196,6 @@ def get_collective_procedures(data):
             if current_procedure_type:
                 current_names.append(name)
                 current_amounts.append(amt)
-
     return {key: value for key, value in collective_procedures.items() if value}
 
 
@@ -237,9 +257,8 @@ def get_parmasters(parmasters_info, author_procedures, collective_procedures, de
     return parmasters
 
 
-def get_cauldron(parmasters, parmasters_count, data1_df):
-    """Основная функция."""
-
+def calculate_cauldron(parmasters, parmasters_count, data1_df):
+    """Получение котла."""
     total = data1_df.loc[data1_df.iloc[:, 0] == 'Итого'].iloc[:, 4].iloc[0]
     counter = 0
     for name_to_find in list(parmasters_count.keys()):
@@ -251,19 +270,25 @@ def get_cauldron(parmasters, parmasters_count, data1_df):
                     if parmaster.rank != 'стажер':
                         counter += 1
                         break
-
-    return total / counter
+    if counter != 0:
+        return total / counter
+    else:
+        return 0
 
 
 def get_results(parmasters, cauldron):
     """Получить результаты от указанных Parmasters."""
     return [{'Имя': parmaster.name, 'Ставка': parmaster.rank, 'Ставка р.': parmaster.base_salary,
+             'Ставка р. (за все смены)': parmaster.calculated_stake,
              'Коллективное парение': parmaster.calculate_collective_procedures()[1],
-             '(кол-во) Парение авторское': parmaster.calculate_author_procedures()[0],
-             '(сумма) Парение авторское': parmaster.calculate_author_procedures()[1],
-             'Котёл': cauldron * parmaster.procedure_percentage,
-             'Итого': parmaster.calculate_salary()[0] * parmaster.procedure_percentage + parmaster.calculate_salary()[
-                 1] + cauldron * parmaster.procedure_percentage
+             '(кол-во) Парение авторское': parmaster.calculate_author_procedures()[0][0],
+             '(сумма) Парение авторское': parmaster.calculate_author_procedures()[0][1],
+             '(кол-во) Парение коллективное авторское': parmaster.calculate_author_procedures()[1][0],
+             '(сумма) Парение коллективное авторское': parmaster.calculate_author_procedures()[1][1],
+             'Все парения (сумма без процента и котла) ': parmaster.calculate_salary()[1],
+             'Котёл': cauldron * parmaster.procedure_percentage if parmaster.rank != 'стажер' else 0,
+             'Итого': parmaster.calculate_salary()[0] + (cauldron * parmaster.procedure_percentage if parmaster.rank != 'стажер' else 0),
+             'Кол-во смен': parmaster.counter
              } for parmaster in parmasters]
 
 
@@ -308,8 +333,10 @@ def main():
     parmasters_info = get_parmasters_info(data3_df, data2_df)
     parmasters = get_parmasters(parmasters_info, author_procedures, collective_procedures, debug_mode)
     parmasters_count = get_parmasters_count(data4_df)
-    cauldron = get_cauldron(parmasters, parmasters_count, data1_df)
+
+    cauldron = calculate_cauldron(parmasters, parmasters_count, data1_df)
     results = get_results(parmasters, cauldron)
+
     match = re.search(r'\d{2}_\d{2}_\d{4}_\d{2}_\d{2}_\d{2}', data3)
     date_time = match.group() if match is not None else 0
     result_file_name = f'отчет_{date_time}.xlsx'
