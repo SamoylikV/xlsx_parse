@@ -50,7 +50,7 @@ class Parmaster:
                     else:
                         collective_earnings += count * 400
         total_salary = ((
-                                author_earnings + collective_earnings) * self.procedure_percentage if self.procedure_percentage != 0 else (
+                                    author_earnings + collective_earnings) * self.procedure_percentage if self.procedure_percentage != 0 else (
                 author_earnings + collective_earnings)) + self.calculated_stake
         total_salary_no_percent = author_earnings + collective_earnings + self.calculated_stake
         return total_salary, total_salary_no_percent
@@ -73,7 +73,6 @@ class Parmaster:
                         collective_earnings += count * 600
                     else:
                         collective_earnings += count * 400
-
         return collective_count, collective_earnings
 
     def calculate_author_procedures(self):

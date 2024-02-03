@@ -3,6 +3,7 @@ import pandas as pd
 import fnmatch
 import re
 from collections import Counter
+from constants import DEBUG_MODE
 
 
 def get_files(pattern):
@@ -122,7 +123,8 @@ def get_results(parmasters, cauldron):
              'Котёл': cauldron * parmaster.procedure_percentage if parmaster.rank != 'стажер' else 0,
              'Итого': parmaster.calculate_salary()[0] + (
                  cauldron * parmaster.procedure_percentage if parmaster.rank != 'стажер' else 0),
-             'Кол-во смен': parmaster.counter
+             'Кол-во смен': parmaster.counter + parmaster.calculate_author_procedures()[0][0] +
+                            parmaster.calculate_author_procedures()[1][0]
              } for parmaster in parmasters]
 
 
@@ -131,11 +133,12 @@ def save_results(results, detailed_procedures, file_name, date_time):
     results_df = pd.DataFrame(results)
     detailed_procedures_df = pd.DataFrame(detailed_procedures)
 
-    if not os.path.exists(date_time):
-        os.makedirs(date_time)
-
-    file_path = os.path.join(date_time, file_name)
-
+    if not DEBUG_MODE:
+        if not os.path.exists(date_time):
+            os.makedirs(date_time)
+        file_path = os.path.join(date_time, file_name)
+    else:
+        file_path = file_name
     with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
         results_df.to_excel(writer, sheet_name='Отчет', index=False)
         detailed_procedures_df.to_excel(writer, sheet_name='Все процедуры', index=False)
